@@ -2,7 +2,7 @@
   "private": false,
   "name": "@khonik/notifications-module",
   "author": "Khonik",
-  "version": "1.0.2",
+  "version": "1.0.5",
   "main": "dist/Notifications.umd.js",
   "module": "dist/Notifications.esm.js",
   "unpkg": "dist/Notifications.min.js",

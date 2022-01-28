@@ -182,26 +182,32 @@
   //
   //
   //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
 
   var script = {
     components: {
       VBtn: lib.VBtn,
       VCol: lib.VCol,
+      VCardTitle: lib.VCardTitle,
       VTextField: lib.VTextField,
       VSelect: lib.VSelect,
       VRow: lib.VRow,
-      VIcon: lib.VIcon,
-      VDataTable: lib.VDataTable,
-      VPagination: lib.VPagination,
-      VCardTitle: lib.VCardTitle,
-      VTextarea: lib.VTextarea,
       VCardText: lib.VCardText,
-      VSpacer: lib.VSpacer,
       VCardActions: lib.VCardActions,
       VCard: lib.VCard,
+      VIcon: lib.VIcon,
+      VDataTable: lib.VDataTable,
+      VTextarea: lib.VTextarea,
+      VSpacer: lib.VSpacer,
       VDialog: lib.VDialog,
       VCheckbox: lib.VCheckbox,
-      VListItemTitle: lib.VListItemTitle,
       VListItemSubtitle: lib.VListItemSubtitle,
       VListItemContent: lib.VListItemContent,
       VListItem: lib.VListItem,
@@ -216,18 +222,15 @@
         {text: 'Тип', sortable: true, value: 'type'},
         {text: 'Заголовок', sortable: true, value: 'title'},
         {text: 'Текст', sortable: false, value: 'text'},
-        {text: 'Кол-во получателей', sortable: true, value: 'customers_count'},
+        {text: 'Кол-во получателей', sortable: true, value: 'users_count'},
         {text: 'Дата отправки', sortable: true, value: 'sent_at'},
         {text: '', sortable: false, value: 'sending'},
         {text: '', sortable: false, value: 'actions'} ],
-      options: {},
       notifications: [],
-      page: 1,
-      q: {
-        search: "",
-      },
+      options: {},
+      query: {},
       total: 0,
-      pages: 0,
+      loading: false,
       edit_item: {},
       edit_dialog: false,
       errors: {},
@@ -240,8 +243,9 @@
       usersListDialog: false,
       userHeaders: [
         {text: 'ID', sortable: false, value: 'id'},
-        {text: 'Фамилия', sortable: false, value: 'lastName'},
-        {text: 'Имя', sortable: false, value: 'firstName'},
+  //      {text: 'Фамилия', sortable: false, value: 'surname'},
+        {text: 'Имя', sortable: false, value: 'name'},
+        {text: 'Телефон', sortable: false, value: 'phone'},
         {text: 'E-mail', sortable: false, value: 'email'} ],
       userOptions: {},
       totalUsers: 0,
@@ -256,30 +260,26 @@
       showUsersDialog: false,
     }); },
 
-    created: function created() {
-      if (this.$route.query.page) {
-        this.page = parseInt(this.$route.query.page);
-      }
-    },
-
     mounted: function mounted() {
-      this.getNotifications();
+      this.readRoute();
     },
 
     watch: {
-      '$route.query.page': function (v) {
-        this.page = parseInt(v);
-        this.getNotifications();
+      "$route": {
+        handler: function handler() {
+          this.readRoute();
+        }, deep: true
       },
       options: {
-        handler: function handler() {
-          this.getNotifications();
+        handler: function handler(v) {
+          var this$1 = this;
+
+          this.query = JSON.parse(JSON.stringify(Object.assign({}, this.query, this.optionsToQuery(v))));
+          this.$nextTick(function () {
+            this$1.getNotifications();
+          });
         },
         deep: true,
-      },
-      page: function page(v) {
-        this.$router.replace(("/notifications?page=" + v)).catch(function () {
-        });
       },
 
       userOptions: {
@@ -293,33 +293,65 @@
           this.fetchUsers();
         }, deep: true
       },
-      selected: {
-        handler: function handler(v) {
-          console.log(v);
-        }, deep: true
-      }
     },
 
     methods: {
-      search: function search() {
-        this.page = 1;
-        this.getNotifications();
+      readRoute: function readRoute() {
+        var this$1 = this;
+
+        this.query = this.$route.query;
+        if (this.query.tags) {
+          this.query.tags = this.query.tags.split(",").filter(function (v, i, self) { return self.indexOf(v) === i; }).map(function (i) { return parseInt(i); });
+        }
+        this.options = JSON.parse(JSON.stringify(Object.assign({}, this.options, this.queryToOptions(this.query))));
+        this.$nextTick(function () {
+          this$1.getNotifications();
+        });
+      },
+      setQueryString: function setQueryString(searchParams) {
+        Object.keys(searchParams).forEach(function (key) {
+          if (searchParams[key] === undefined || searchParams[key] === null || searchParams[key] === "") {
+            delete searchParams[key];
+          } else if (searchParams[key] === true) {
+            searchParams[key] = 1;
+          } else if (searchParams[key] === false) {
+            searchParams[key] = 0;
+          }
+        });
+        return new URLSearchParams(searchParams).toString();
+      },
+      optionsToQuery: function optionsToQuery(opts) {
+        return {
+          page: opts.page,
+          take: opts.itemsPerPage,
+          sort_by: opts.sortBy[0],
+          sort_desc: opts.sortDesc[0],
+        };
+      },
+      queryToOptions: function queryToOptions(query) {
+        return {
+          page: parseInt(query.page),
+          itemsPerPage: parseInt(query.take),
+          sortBy: [query.sort_by].filter(function (x) { return x; }),
+          sortDesc: [!!parseInt(query.sort_desc)].filter(function (x) { return x; }),
+        };
+      },
+
+      replaceRoute: function replaceRoute() {
+        this.$router.replace(("/notifications?" + (this.setQueryString(this.query)))).catch(function () {
+        });
       },
       getNotifications: function getNotifications() {
         var this$1 = this;
 
-        var data = Object.assign({}, this.q,
-          {page: this.page,
-          sortBy: this.options.sortBy[0] ? this.options.sortBy[0] : '',
-          sortDesc: this.options.sortDesc[0] ? 1 : 0});
-        var query = new URLSearchParams(data).toString();
-        this.$http.get(("notifications?" + query)).then(function (r) {
+        this.loading = true;
+        this.$http.get(("notifications?" + (this.setQueryString(this.query)))).then(function (r) {
           this$1.notifications = r.body.notifications;
-          this$1.total = r.body.totaCount;
-          this$1.pages = r.body.pagesCount;
+          this$1.total = r.body.total;
+          this$1.loading = false;
         });
       },
-      addItem: function addItem() {
+      create: function create() {
         this.edit_item = {};
         this.edit_dialog = true;
       },
@@ -360,7 +392,6 @@
       },
       selectUsers: function selectUsers(item) {
         this.edit_item = item;
-        console.log('edit',this.edit_item);
         this.usersListDialog = true;
         this.getSelectedUsers();
         this.fetchUsers();
@@ -368,25 +399,28 @@
       getSelectedUsers: function getSelectedUsers() {
         var this$1 = this;
 
-        this.$http.get(("notifications/" + (this.edit_item.id) + "/customers")).then(function (r) {
-          this$1.selected = r.body.customers;
+        this.$http.get(("notifications/" + (this.edit_item.id) + "/get-users")).then(function (r) {
+          this$1.selected = r.body.users;
         });
       },
       fetchUsers: function fetchUsers() {
         var this$1 = this;
 
-        var pagination = {page: this.userOptions.page ? this.userOptions.page : 1, take: this.userOptions.itemsPerPage ? this.userOptions.itemsPerPage : 10};
+        var pagination = {
+          page: this.userOptions.page ? this.userOptions.page : 1,
+          take: this.userOptions.itemsPerPage ? this.userOptions.itemsPerPage : 10
+        };
         var query = new URLSearchParams(Object.assign({}, this.userQ, pagination)).toString();
-        this.$http.get(("customers?" + query)).then(function (r) {
-          this$1.totalUsers = r.body.total_count;
-          this$1.users = r.body.customers;
+        this.$http.get(("users?" + query)).then(function (r) {
+          this$1.totalUsers = r.body.total;
+          this$1.users = r.body.users;
         });
       },
       syncUsers: function syncUsers() {
         var this$1 = this;
 
-        this.$http.post(("notifications/" + (this.edit_item.id) + "/set-customers"), {
-          customers: this.selected.map(function (user) { return user.id; })
+        this.$http.post(("notifications/" + (this.edit_item.id) + "/set-users"), {
+          users: this.selected.map(function (user) { return user.id; })
         }).then(function () {
           this$1.usersListDialog = false;
           this$1.getNotifications();
@@ -544,249 +578,256 @@
     var _h = _vm.$createElement;
     var _c = _vm._self._c || _h;
     return _c(
-      "div",
+      "v-row",
+      { staticClass: "mx-3 mt-5" },
       [
         _c(
-          "v-row",
+          "v-col",
+          {
+            staticClass: "d-flex justify-space-between align-center",
+            attrs: { cols: "12" },
+          },
+          [
+            _c("div", { staticClass: "text-h6" }, [_vm._v("Уведомления")]),
+            _vm._v(" "),
+            _c(
+              "v-btn",
+              {
+                attrs: { small: "", color: "primary" },
+                on: { click: _vm.create },
+              },
+              [_vm._v("Создать уведомление")]
+            ) ],
+          1
+        ),
+        _vm._v(" "),
+        _c(
+          "v-col",
+          { attrs: { cols: "12" } },
           [
             _c(
-              "v-col",
-              { attrs: { cols: "12" } },
+              "v-card",
               [
+                _c("v-card-title", [_vm._v("Фильтр")]),
+                _vm._v(" "),
                 _c(
-                  "v-btn",
-                  {
-                    staticClass: "float-right",
-                    attrs: { outlined: "", color: "primary" },
-                    on: {
-                      click: function ($event) {
-                        return _vm.addItem()
-                      },
-                    },
-                  },
-                  [_vm._v("Создать уведомление")]
-                ) ],
-              1
-            ),
-            _vm._v(" "),
-            _c(
-              "v-col",
-              {
-                staticClass: "d-flex align-center",
-                attrs: { cols: "12", sm: "6" },
-              },
-              [
-                _c("v-text-field", {
-                  staticClass: "mx-4",
-                  attrs: { label: "Поиск", dense: "", "hide-details": "" },
-                  model: {
-                    value: _vm.q.search,
-                    callback: function ($$v) {
-                      _vm.$set(_vm.q, "search", $$v);
-                    },
-                    expression: "q.search",
-                  },
-                }) ],
-              1
-            ),
-            _vm._v(" "),
-            _c(
-              "v-col",
-              {
-                staticClass: "d-flex align-center",
-                attrs: { cols: "12", sm: "3" },
-              },
-              [
-                _c("v-select", {
-                  attrs: {
-                    label: "Тип",
-                    "item-value": "key",
-                    "item-text": "label",
-                    items: _vm.notificationTypes,
-                    dense: "",
-                    "hide-details": "",
-                  },
-                  model: {
-                    value: _vm.q.type,
-                    callback: function ($$v) {
-                      _vm.$set(_vm.q, "type", $$v);
-                    },
-                    expression: "q.type",
-                  },
-                }) ],
-              1
-            ),
-            _vm._v(" "),
-            _c(
-              "v-col",
-              {
-                staticClass: "d-flex align-center",
-                attrs: { cols: "12", sm: "3" },
-              },
-              [
+                  "v-card-text",
+                  [
+                    _c(
+                      "v-row",
+                      [
+                        _c(
+                          "v-col",
+                          { attrs: { cols: "12", sm: "6" } },
+                          [
+                            _c("v-text-field", {
+                              staticClass: "mx-4",
+                              attrs: {
+                                label: "Поиск",
+                                dense: "",
+                                "hide-details": "",
+                                outlined: "",
+                              },
+                              model: {
+                                value: _vm.query.search,
+                                callback: function ($$v) {
+                                  _vm.$set(_vm.query, "search", $$v);
+                                },
+                                expression: "query.search",
+                              },
+                            }) ],
+                          1
+                        ),
+                        _vm._v(" "),
+                        _c(
+                          "v-col",
+                          { attrs: { cols: "12", sm: "3" } },
+                          [
+                            _c("v-select", {
+                              attrs: {
+                                label: "Тип",
+                                "item-value": "key",
+                                "item-text": "label",
+                                items: _vm.notificationTypes,
+                                dense: "",
+                                "hide-details": "",
+                                outlined: "",
+                              },
+                              model: {
+                                value: _vm.query.type,
+                                callback: function ($$v) {
+                                  _vm.$set(_vm.query, "type", $$v);
+                                },
+                                expression: "query.type",
+                              },
+                            }) ],
+                          1
+                        ) ],
+                      1
+                    ) ],
+                  1
+                ),
+                _vm._v(" "),
                 _c(
-                  "v-btn",
-                  {
-                    attrs: { color: "primary" },
-                    on: {
-                      click: function ($event) {
-                        return _vm.search()
+                  "v-card-actions",
+                  [
+                    _c(
+                      "v-btn",
+                      {
+                        attrs: { color: "primary" },
+                        on: {
+                          click: function ($event) {
+                            return _vm.replaceRoute()
+                          },
+                        },
                       },
-                    },
-                  },
-                  [_vm._v("Найти")]
+                      [_vm._v("Найти")]
+                    ) ],
+                  1
                 ) ],
               1
             ) ],
           1
         ),
         _vm._v(" "),
-        _c("v-data-table", {
-          attrs: {
-            headers: _vm.headers,
-            items: _vm.notifications,
-            "items-per-page": 30,
-            options: _vm.options,
-            "hide-default-footer": "",
-          },
-          on: {
-            "update:options": function ($event) {
-              _vm.options = $event;
-            },
-          },
-          scopedSlots: _vm._u([
-            {
-              key: "item.type",
-              fn: function (ref) {
-                var item = ref.item;
-                return [
-                  _c("span", [
-                    _vm._v(
-                      _vm._s(
-                        _vm.notificationTypes.find(function (x) {
-                          return x.key === item.type
-                        }).label
-                      )
-                    ) ]) ]
-              },
-            },
-            {
-              key: "item.sent_at",
-              fn: function (ref) {
-                var item = ref.item;
-                return [
-                  _c("span", [
-                    _vm._v(_vm._s(item.sent_at ? item.sent_at : "Не отправлено")) ]) ]
-              },
-            },
-            {
-              key: "item.users_count",
-              fn: function (ref) {
-                var item = ref.item;
-                return [
-                  _c(
-                    "v-btn",
-                    {
-                      attrs: { text: "" },
-                      on: {
-                        click: function ($event) {
-                          return _vm.showUsersList(item)
-                        },
-                      },
-                    },
-                    [_vm._v(_vm._s(item.users_count))]
-                  ) ]
-              },
-            },
-            {
-              key: "item.sending",
-              fn: function (ref) {
-                var item = ref.item;
-                return [
-                  !item.sent_at
-                    ? _c(
-                        "v-btn",
-                        {
-                          attrs: { small: "", text: "", color: "primary" },
-                          on: {
-                            click: function ($event) {
-                              return _vm.selectUsers(item)
-                            },
-                          },
-                        },
-                        [_vm._v("\n        Выбрать получателей\n      ")]
-                      )
-                    : _vm._e(),
-                  _vm._v(" "),
-                  !item.sent_at
-                    ? _c(
-                        "v-btn",
-                        {
-                          attrs: { small: "", text: "", color: "success" },
-                          on: {
-                            click: function ($event) {
-                              return _vm.send(item)
-                            },
-                          },
-                        },
-                        [_vm._v("\n        Отправить\n      ")]
-                      )
-                    : _vm._e() ]
-              },
-            },
-            {
-              key: "item.actions",
-              fn: function (ref) {
-                var item = ref.item;
-                return [
-                  !item.sent_at
-                    ? _c(
-                        "v-btn",
-                        {
-                          attrs: { small: "", icon: "", color: "warning" },
-                          on: {
-                            click: function ($event) {
-                              return _vm.edit(item)
-                            },
-                          },
-                        },
-                        [_c("v-icon", [_vm._v("mdi-pencil")])],
-                        1
-                      )
-                    : _vm._e(),
-                  _vm._v(" "),
-                  !item.sent_at
-                    ? _c(
-                        "v-btn",
-                        {
-                          attrs: { small: "", icon: "", color: "error" },
-                          on: {
-                            click: function ($event) {
-                              return _vm.destroy(item)
-                            },
-                          },
-                        },
-                        [_c("v-icon", [_vm._v("mdi-delete")])],
-                        1
-                      )
-                    : _vm._e() ]
-              },
-            } ]),
-        }),
-        _vm._v(" "),
         _c(
-          "div",
-          { staticClass: "text-center pt-2" },
+          "v-col",
+          { attrs: { cols: "12" } },
           [
-            _c("v-pagination", {
-              attrs: { length: _vm.pages },
-              model: {
-                value: _vm.page,
-                callback: function ($$v) {
-                  _vm.page = $$v;
-                },
-                expression: "page",
+            _c("v-data-table", {
+              staticClass: "elevation-1 mt-3",
+              attrs: {
+                headers: _vm.headers,
+                items: _vm.notifications,
+                options: _vm.options,
+                "server-items-length": _vm.total,
+                loading: _vm.loading,
               },
+              on: {
+                "update:options": function ($event) {
+                  _vm.options = $event;
+                },
+              },
+              scopedSlots: _vm._u([
+                {
+                  key: "item.type",
+                  fn: function (ref) {
+                    var item = ref.item;
+                    return [
+                      _c("span", [
+                        _vm._v(
+                          _vm._s(
+                            _vm.notificationTypes.find(function (x) {
+                              return x.key === item.type
+                            }).label
+                          )
+                        ) ]) ]
+                  },
+                },
+                {
+                  key: "item.sent_at",
+                  fn: function (ref) {
+                    var item = ref.item;
+                    return [
+                      _c("span", [
+                        _vm._v(
+                          _vm._s(item.sent_at ? item.sent_at : "Не отправлено")
+                        ) ]) ]
+                  },
+                },
+                {
+                  key: "item.users_count",
+                  fn: function (ref) {
+                    var item = ref.item;
+                    return [
+                      _c(
+                        "v-btn",
+                        {
+                          attrs: { text: "" },
+                          on: {
+                            click: function ($event) {
+                              return _vm.showUsersList(item)
+                            },
+                          },
+                        },
+                        [_vm._v(_vm._s(item.users_count))]
+                      ) ]
+                  },
+                },
+                {
+                  key: "item.sending",
+                  fn: function (ref) {
+                    var item = ref.item;
+                    return [
+                      !item.sent_at
+                        ? _c(
+                            "v-btn",
+                            {
+                              attrs: { small: "", text: "", color: "primary" },
+                              on: {
+                                click: function ($event) {
+                                  return _vm.selectUsers(item)
+                                },
+                              },
+                            },
+                            [_vm._v("\n          Выбрать получателей\n        ")]
+                          )
+                        : _vm._e(),
+                      _vm._v(" "),
+                      !item.sent_at
+                        ? _c(
+                            "v-btn",
+                            {
+                              attrs: { small: "", text: "", color: "success" },
+                              on: {
+                                click: function ($event) {
+                                  return _vm.send(item)
+                                },
+                              },
+                            },
+                            [_vm._v("\n          Отправить\n        ")]
+                          )
+                        : _vm._e() ]
+                  },
+                },
+                {
+                  key: "item.actions",
+                  fn: function (ref) {
+                    var item = ref.item;
+                    return [
+                      !item.sent_at
+                        ? _c(
+                            "v-btn",
+                            {
+                              attrs: { small: "", icon: "", color: "warning" },
+                              on: {
+                                click: function ($event) {
+                                  return _vm.edit(item)
+                                },
+                              },
+                            },
+                            [_c("v-icon", [_vm._v("mdi-pencil")])],
+                            1
+                          )
+                        : _vm._e(),
+                      _vm._v(" "),
+                      !item.sent_at
+                        ? _c(
+                            "v-btn",
+                            {
+                              attrs: { small: "", icon: "", color: "error" },
+                              on: {
+                                click: function ($event) {
+                                  return _vm.destroy(item)
+                                },
+                              },
+                            },
+                            [_c("v-icon", [_vm._v("mdi-delete")])],
+                            1
+                          )
+                        : _vm._e() ]
+                  },
+                } ]),
             }) ],
           1
         ),
@@ -921,7 +962,7 @@
                           [
                             _c("v-text-field", {
                               staticClass: "mx-4",
-                              attrs: { label: "Поиск" },
+                              attrs: { label: "Поиск", outlined: "", dense: "" },
                               model: {
                                 value: _vm.userQ.search,
                                 callback: function ($$v) {
@@ -1046,13 +1087,18 @@
                             _c(
                               "v-list-item-content",
                               [
-                                _c("v-list-item-title", [
-                                  _vm._v(
-                                    _vm._s(u.lastName) + " " + _vm._s(u.firstName)
-                                  ) ]),
-                                _vm._v(" "),
                                 _c("v-list-item-subtitle", [
-                                  _vm._v(_vm._s(u.email)) ]) ],
+                                  _vm._v(_vm._s([u.name, u.surname].join(" "))) ]),
+                                _vm._v(" "),
+                                u.phone
+                                  ? _c("v-list-item-subtitle", [
+                                      _vm._v(_vm._s(u.phone)) ])
+                                  : _vm._e(),
+                                _vm._v(" "),
+                                u.email
+                                  ? _c("v-list-item-subtitle", [
+                                      _vm._v(_vm._s(u.email)) ])
+                                  : _vm._e() ],
                               1
                             ) ],
                           1
@@ -1094,11 +1140,11 @@
     /* style */
     var __vue_inject_styles__ = function (inject) {
       if (!inject) { return }
-      inject("data-v-cd3e120c_0", { source: "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n", map: {"version":3,"sources":[],"names":[],"mappings":"","file":"Notifications.vue"}, media: undefined });
+      inject("data-v-766afb5d_0", { source: "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n", map: {"version":3,"sources":[],"names":[],"mappings":"","file":"Notifications.vue"}, media: undefined });
 
     };
     /* scoped */
-    var __vue_scope_id__ = "data-v-cd3e120c";
+    var __vue_scope_id__ = "data-v-766afb5d";
     /* module identifier */
     var __vue_module_identifier__ = undefined;
     /* functional template */

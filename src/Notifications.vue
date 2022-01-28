@@ -1,78 +1,83 @@
 <template>
-  <div>
-    <v-row>
-      <v-col cols="12">
-        <v-btn class="float-right" outlined color="primary" @click="addItem()">Создать уведомление</v-btn>
-      </v-col>
-      <v-col class="d-flex align-center" cols="12" sm="6">
-        <v-text-field
-            v-model="q.search"
-            label="Поиск"
-            class="mx-4"
-            dense
-            hide-details
-        ></v-text-field>
-      </v-col>
-      <v-col class="d-flex align-center" cols="12" sm="3">
-        <v-select
-            label="Тип"
-            item-value="key"
-            item-text="label"
-            :items="notificationTypes"
-            v-model="q.type"
-            dense
-            hide-details
-        />
-      </v-col>
-      <v-col class="d-flex align-center" cols="12" sm="3">
-        <v-btn @click="search()" color="primary">Найти</v-btn>
-      </v-col>
+  <v-row class="mx-3 mt-5">
+    <v-col cols="12" class="d-flex justify-space-between align-center">
+      <div class="text-h6">Уведомления</div>
+      <v-btn small color="primary" @click="create">Создать уведомление</v-btn>
+    </v-col>
+    <v-col cols="12">
+      <v-card>
+        <v-card-title>Фильтр</v-card-title>
+        <v-card-text>
+          <v-row>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                  v-model="query.search"
+                  label="Поиск"
+                  class="mx-4"
+                  dense
+                  hide-details
+                  outlined
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="3">
+              <v-select
+                  label="Тип"
+                  item-value="key"
+                  item-text="label"
+                  :items="notificationTypes"
+                  v-model="query.type"
+                  dense
+                  hide-details
+                  outlined
+              />
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn @click="replaceRoute()" color="primary">Найти</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-col>
+    <v-col cols="12">
+      <v-data-table
+          :headers="headers"
+          :items="notifications"
+          :options.sync="options"
+          :server-items-length="total"
+          :loading="loading"
+          class="elevation-1 mt-3"
+      >
+        <template v-slot:item.type="{item}">
+          <span>{{ notificationTypes.find(x => x.key === item.type).label }}</span>
+        </template>
 
-    </v-row>
-    <v-data-table
-        :headers="headers"
-        :items="notifications"
-        :items-per-page="30"
-        :options.sync="options"
-        hide-default-footer
-    >
-      <template v-slot:item.type="{item}">
-        <span>{{ notificationTypes.find(x => x.key === item.type).label }}</span>
-      </template>
+        <template v-slot:item.sent_at="{item}">
+          <span>{{ item.sent_at ? item.sent_at : 'Не отправлено' }}</span>
+        </template>
 
-      <template v-slot:item.sent_at="{item}">
-        <span>{{ item.sent_at ? item.sent_at : 'Не отправлено' }}</span>
-      </template>
+        <template v-slot:item.users_count="{item}">
+          <v-btn text @click="showUsersList(item)">{{ item.users_count }}</v-btn>
+        </template>
+        <template v-slot:item.sending="{item}">
+          <v-btn small text color="primary" @click="selectUsers(item)" v-if="!item.sent_at">
+            Выбрать получателей
+          </v-btn>
+          <v-btn small text color="success" @click="send(item)" v-if="!item.sent_at">
+            Отправить
+          </v-btn>
+        </template>
+        <template v-slot:item.actions="{item}">
 
-      <template v-slot:item.users_count="{item}">
-        <v-btn text @click="showUsersList(item)">{{ item.users_count }}</v-btn>
-      </template>
-      <template v-slot:item.sending="{item}">
-        <v-btn small text color="primary" @click="selectUsers(item)" v-if="!item.sent_at">
-          Выбрать получателей
-        </v-btn>
-        <v-btn small text color="success" @click="send(item)" v-if="!item.sent_at">
-          Отправить
-        </v-btn>
-      </template>
-      <template v-slot:item.actions="{item}">
+          <v-btn small icon color="warning" @click="edit(item)" v-if="!item.sent_at">
+            <v-icon>mdi-pencil</v-icon>
+          </v-btn>
+          <v-btn small icon color="error" @click="destroy(item)" v-if="!item.sent_at">
+            <v-icon>mdi-delete</v-icon>
+          </v-btn>
+        </template>
+      </v-data-table>
+    </v-col>
 
-        <v-btn small icon color="warning" @click="edit(item)" v-if="!item.sent_at">
-          <v-icon>mdi-pencil</v-icon>
-        </v-btn>
-        <v-btn small icon color="error" @click="destroy(item)" v-if="!item.sent_at">
-          <v-icon>mdi-delete</v-icon>
-        </v-btn>
-
-      </template>
-
-    </v-data-table>
-    <div class="text-center pt-2">
-      <v-pagination
-          v-model="page"
-          :length="pages"
-      ></v-pagination>
-    </div>
     <v-dialog v-model="edit_dialog" max-width="500">
       <v-card>
         <v-card-title>Изменить уведомление</v-card-title>
@@ -121,6 +126,8 @@
                   v-model="userQ.search"
                   label="Поиск"
                   class="mx-4"
+                  outlined
+                  dense
               ></v-text-field>
             </v-col>
             <v-col class="d-flex align-center" cols="12" md="2">
@@ -161,8 +168,9 @@
           <v-list>
             <v-list-item :key="u.id" v-for="u in selected">
               <v-list-item-content>
-                <v-list-item-title>{{ u.lastName }} {{ u.firstName }}</v-list-item-title>
-                <v-list-item-subtitle>{{ u.email }}</v-list-item-subtitle>
+                <v-list-item-subtitle>{{ [u.name, u.surname].join(" ") }}</v-list-item-subtitle>
+                <v-list-item-subtitle v-if="u.phone">{{ u.phone }}</v-list-item-subtitle>
+                <v-list-item-subtitle v-if="u.email">{{ u.email }}</v-list-item-subtitle>
               </v-list-item-content>
             </v-list-item>
           </v-list>
@@ -173,7 +181,7 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </div>
+  </v-row>
 </template>
 
 <script>
@@ -185,19 +193,16 @@ export default {
       {text: 'Тип', sortable: true, value: 'type'},
       {text: 'Заголовок', sortable: true, value: 'title'},
       {text: 'Текст', sortable: false, value: 'text'},
-      {text: 'Кол-во получателей', sortable: true, value: 'customers_count'},
+      {text: 'Кол-во получателей', sortable: true, value: 'users_count'},
       {text: 'Дата отправки', sortable: true, value: 'sent_at'},
       {text: '', sortable: false, value: 'sending'},
       {text: '', sortable: false, value: 'actions'},
     ],
-    options: {},
     notifications: [],
-    page: 1,
-    q: {
-      search: "",
-    },
+    options: {},
+    query: {},
     total: 0,
-    pages: 0,
+    loading: false,
     edit_item: {},
     edit_dialog: false,
     errors: {},
@@ -211,8 +216,9 @@ export default {
     usersListDialog: false,
     userHeaders: [
       {text: 'ID', sortable: false, value: 'id'},
-      {text: 'Фамилия', sortable: false, value: 'lastName'},
-      {text: 'Имя', sortable: false, value: 'firstName'},
+//      {text: 'Фамилия', sortable: false, value: 'surname'},
+      {text: 'Имя', sortable: false, value: 'name'},
+      {text: 'Телефон', sortable: false, value: 'phone'},
       {text: 'E-mail', sortable: false, value: 'email'},
     ],
     userOptions: {},
@@ -227,28 +233,23 @@ export default {
 
     showUsersDialog: false,
   }),
-  created() {
-    if (this.$route.query.page) {
-      this.page = parseInt(this.$route.query.page);
-    }
-  },
   mounted() {
-    this.getNotifications()
+    this.readRoute();
   },
   watch: {
-    '$route.query.page': function (v) {
-      this.page = parseInt(v);
-      this.getNotifications();
+    "$route": {
+      handler() {
+        this.readRoute();
+      }, deep: true
     },
     options: {
-      handler() {
-        this.getNotifications();
+      handler(v) {
+        this.query = JSON.parse(JSON.stringify({...this.query, ...this.optionsToQuery(v)}));
+        this.$nextTick(() => {
+          this.getNotifications();
+        })
       },
       deep: true,
-    },
-    page(v) {
-      this.$router.replace(`/notifications?page=${v}`).catch(() => {
-      })
     },
 
     userOptions: {
@@ -262,32 +263,60 @@ export default {
         this.fetchUsers();
       }, deep: true
     },
-    selected: {
-      handler(v) {
-        console.log(v);
-      }, deep: true
-    }
   },
   methods: {
-    search() {
-      this.page = 1;
-      this.getNotifications();
-    },
-    getNotifications() {
-      const data = {
-        ...this.q,
-        page: this.page,
-        sortBy: this.options.sortBy[0] ? this.options.sortBy[0] : '',
-        sortDesc: this.options.sortDesc[0] ? 1 : 0,
-      };
-      let query = new URLSearchParams(data).toString();
-      this.$http.get(`notifications?${query}`).then(r => {
-        this.notifications = r.body.notifications;
-        this.total = r.body.totaCount;
-        this.pages = r.body.pagesCount;
+    readRoute() {
+      this.query = this.$route.query;
+      if (this.query.tags) {
+        this.query.tags = this.query.tags.split(",").filter((v, i, self) => self.indexOf(v) === i).map(i => parseInt(i))
+      }
+      this.options = JSON.parse(JSON.stringify({...this.options, ...this.queryToOptions(this.query)}));
+      this.$nextTick(() => {
+        this.getNotifications();
       })
     },
-    addItem() {
+    setQueryString(searchParams) {
+      Object.keys(searchParams).forEach(key => {
+        if (searchParams[key] === undefined || searchParams[key] === null || searchParams[key] === "") {
+          delete searchParams[key]
+        } else if (searchParams[key] === true) {
+          searchParams[key] = 1;
+        } else if (searchParams[key] === false) {
+          searchParams[key] = 0;
+        }
+      });
+      return new URLSearchParams(searchParams).toString();
+    },
+    optionsToQuery(opts) {
+      return {
+        page: opts.page,
+        take: opts.itemsPerPage,
+        sort_by: opts.sortBy[0],
+        sort_desc: opts.sortDesc[0],
+      };
+    },
+    queryToOptions(query) {
+      return {
+        page: parseInt(query.page),
+        itemsPerPage: parseInt(query.take),
+        sortBy: [query.sort_by].filter(x => x),
+        sortDesc: [!!parseInt(query.sort_desc)].filter(x => x),
+      };
+    },
+
+    replaceRoute() {
+      this.$router.replace(`/notifications?${this.setQueryString(this.query)}`).catch(() => {
+      });
+    },
+    getNotifications() {
+      this.loading = true;
+      this.$http.get(`notifications?${this.setQueryString(this.query)}`).then(r => {
+        this.notifications = r.body.notifications;
+        this.total = r.body.total;
+        this.loading = false;
+      })
+    },
+    create() {
       this.edit_item = {};
       this.edit_dialog = true;
     },
@@ -322,27 +351,29 @@ export default {
     },
     selectUsers(item) {
       this.edit_item = item;
-      console.log('edit',this.edit_item);
       this.usersListDialog = true;
       this.getSelectedUsers();
       this.fetchUsers();
     },
     getSelectedUsers() {
-      this.$http.get(`notifications/${this.edit_item.id}/customers`).then(r => {
-        this.selected = r.body.customers;
+      this.$http.get(`notifications/${this.edit_item.id}/get-users`).then(r => {
+        this.selected = r.body.users;
       })
     },
     fetchUsers() {
-      let pagination = {page: this.userOptions.page ? this.userOptions.page : 1, take: this.userOptions.itemsPerPage ? this.userOptions.itemsPerPage : 10};
+      let pagination = {
+        page: this.userOptions.page ? this.userOptions.page : 1,
+        take: this.userOptions.itemsPerPage ? this.userOptions.itemsPerPage : 10
+      };
       let query = new URLSearchParams({...this.userQ, ...pagination}).toString();
-      this.$http.get(`customers?${query}`).then(r => {
-        this.totalUsers = r.body.total_count;
-        this.users = r.body.customers;
+      this.$http.get(`users?${query}`).then(r => {
+        this.totalUsers = r.body.total;
+        this.users = r.body.users;
       })
     },
     syncUsers() {
-      this.$http.post(`notifications/${this.edit_item.id}/set-customers`, {
-        customers: this.selected.map(user => user.id)
+      this.$http.post(`notifications/${this.edit_item.id}/set-users`, {
+        users: this.selected.map(user => user.id)
       }).then(() => {
         this.usersListDialog = false;
         this.getNotifications();

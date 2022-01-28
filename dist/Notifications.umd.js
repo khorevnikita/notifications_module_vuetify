@@ -1,8 +1,8 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
-  typeof define === 'function' && define.amd ? define(['exports'], factory) :
-  (global = global || self, factory(global.Notifications = {}));
-}(this, (function (exports) { 'use strict';
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('vuetify/lib')) :
+  typeof define === 'function' && define.amd ? define(['exports', 'vuetify/lib'], factory) :
+  (global = global || self, factory(global.Notifications = {}, global.lib));
+}(this, (function (exports, lib) { 'use strict';
 
   //
   //
@@ -184,7 +184,32 @@
   //
 
   var script = {
+    components: {
+      VBtn: lib.VBtn,
+      VCol: lib.VCol,
+      VTextField: lib.VTextField,
+      VSelect: lib.VSelect,
+      VRow: lib.VRow,
+      VIcon: lib.VIcon,
+      VDataTable: lib.VDataTable,
+      VPagination: lib.VPagination,
+      VCardTitle: lib.VCardTitle,
+      VTextarea: lib.VTextarea,
+      VCardText: lib.VCardText,
+      VSpacer: lib.VSpacer,
+      VCardActions: lib.VCardActions,
+      VCard: lib.VCard,
+      VDialog: lib.VDialog,
+      VCheckbox: lib.VCheckbox,
+      VListItemTitle: lib.VListItemTitle,
+      VListItemSubtitle: lib.VListItemSubtitle,
+      VListItemContent: lib.VListItemContent,
+      VListItem: lib.VListItem,
+      VList: lib.VList
+    },
+
     name: "Notifications",
+
     data: function () { return ({
       headers: [
         {text: 'ID', sortable: true, value: 'id'},
@@ -230,14 +255,17 @@
 
       showUsersDialog: false,
     }); },
+
     created: function created() {
       if (this.$route.query.page) {
         this.page = parseInt(this.$route.query.page);
       }
     },
+
     mounted: function mounted() {
       this.getNotifications();
     },
+
     watch: {
       '$route.query.page': function (v) {
         this.page = parseInt(v);
@@ -271,6 +299,7 @@
         }, deep: true
       }
     },
+
     methods: {
       search: function search() {
         this.page = 1;

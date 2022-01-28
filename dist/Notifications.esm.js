@@ -1,3 +1,5 @@
+import { VBtn, VCol, VTextField, VSelect, VRow, VIcon, VDataTable, VPagination, VCardTitle, VTextarea, VCardText, VSpacer, VCardActions, VCard, VDialog, VCheckbox, VListItemTitle, VListItemSubtitle, VListItemContent, VListItem, VList } from 'vuetify/lib';
+
 //
 //
 //
@@ -178,7 +180,32 @@
 //
 
 var script = {
+  components: {
+    VBtn: VBtn,
+    VCol: VCol,
+    VTextField: VTextField,
+    VSelect: VSelect,
+    VRow: VRow,
+    VIcon: VIcon,
+    VDataTable: VDataTable,
+    VPagination: VPagination,
+    VCardTitle: VCardTitle,
+    VTextarea: VTextarea,
+    VCardText: VCardText,
+    VSpacer: VSpacer,
+    VCardActions: VCardActions,
+    VCard: VCard,
+    VDialog: VDialog,
+    VCheckbox: VCheckbox,
+    VListItemTitle: VListItemTitle,
+    VListItemSubtitle: VListItemSubtitle,
+    VListItemContent: VListItemContent,
+    VListItem: VListItem,
+    VList: VList
+  },
+
   name: "Notifications",
+
   data: function () { return ({
     headers: [
       {text: 'ID', sortable: true, value: 'id'},
@@ -224,14 +251,17 @@ var script = {
 
     showUsersDialog: false,
   }); },
+
   created: function created() {
     if (this.$route.query.page) {
       this.page = parseInt(this.$route.query.page);
     }
   },
+
   mounted: function mounted() {
     this.getNotifications();
   },
+
   watch: {
     '$route.query.page': function (v) {
       this.page = parseInt(v);
@@ -265,6 +295,7 @@ var script = {
       }, deep: true
     }
   },
+
   methods: {
     search: function search() {
       this.page = 1;

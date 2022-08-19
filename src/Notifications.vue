@@ -46,6 +46,7 @@
           :server-items-length="total"
           :loading="loading"
           class="elevation-1 mt-3"
+          :items-per-page="10"
       >
         <template v-slot:item.type="{item}">
           <span>{{ notificationTypes.find(x => x.key === item.type).label }}</span>
